@@ -50,7 +50,7 @@ int psp2link_loglevel=1;
 int psp2LinkInit(char *serverIp, int requestPort,int debugPort, int commandPort, int level)
 {
 	int ret;
-    psp2link_loglevel=level;
+	psp2link_loglevel=level;
 	psp2link_requests_port=requestPort;
 	psp2link_commands_port=commandPort;
 	
@@ -62,8 +62,7 @@ int psp2LinkInit(char *serverIp, int requestPort,int debugPort, int commandPort,
 	if(debugNetInit(serverIp,debugPort,level))
 	{
 		
-		server_request_thid = sceKernelCreateThread("psp2link_request_server_thread",
-				psp2link_requests_thread, 64, 0x80000, 0, 0, NULL);
+		server_request_thid = sceKernelCreateThread("psp2link_request_server_thread", psp2link_requests_thread, 64, 0x80000, 0, 0, NULL);
 		
 		debugNetPrintf(DEBUG,"Server request thread UID: 0x%08X\n", server_request_thid);
 
@@ -86,8 +85,7 @@ int psp2LinkInit(char *serverIp, int requestPort,int debugPort, int commandPort,
 			return 0;
 		}
 	
-		server_command_thid = sceKernelCreateThread("psp2link_command_server_thread",
-				psp2link_commands_thread, 0x10000100, 0x10000, 0, 0, NULL);
+		server_command_thid = sceKernelCreateThread("psp2link_command_server_thread", psp2link_commands_thread, 0x10000100, 0x10000, 0, 0, NULL);
 		
 		debugNetPrintf(DEBUG,"Server command thread UID: 0x%08X\n", server_command_thid);
 
@@ -112,7 +110,7 @@ int psp2LinkInit(char *serverIp, int requestPort,int debugPort, int commandPort,
 		
 	
 		/*library psp2link initialized*/	
-	    psp2link_initialized = 1;
+	    	psp2link_initialized = 1;
 		
 	}
 	else
@@ -133,8 +131,8 @@ int psp2LinkInit(char *serverIp, int requestPort,int debugPort, int commandPort,
 void psp2LinkFinish()
 {
     if (psp2link_initialized) {
-		psp2link_fileio_active=0;
+	psp2link_fileio_active=0;
         psp2link_initialized = 0;
-		debugNetFinish();
+	debugNetFinish();
     }
 }
