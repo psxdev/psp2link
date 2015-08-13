@@ -119,7 +119,7 @@ PSP2LINK FOR VITA
   
   About logging i like more udp log system like libdebugnet instead logging system incorporated in uvloader, but it is only my preference based only in my own experience since ps2dev days.
   
-  If you don't want to use logging, initialize ps2plink with right loglevel check libdebugnet sources to see differents log levels availables.
+  If you don't want to use logging, initialize psp2link with right loglevel check libdebugnet sources to see differents log levels availables.
   
 ===========================
   Credits
