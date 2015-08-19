@@ -13,7 +13,7 @@ CC      = $(PREFIX)-gcc
 CXX	=$(PREFIX)-g++
 READELF = $(PREFIX)-readelf
 OBJDUMP = $(PREFIX)-objdump
-CFLAGS  = -Wl,-q-O2 -Wall $(DEFINES) $(INCDIR) -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables -ffunction-sections
+CFLAGS  = -Wl,-q -O2 -Wall $(DEFINES) $(INCDIR) -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables -ffunction-sections
 CXXFLAGS = $(CFLAGS) -fno-unwind-tables -fno-rtti -fno-exceptions -Wno-deprecated -Wno-comment -Wno-sequence-point
 ASFLAGS = $(CFLAGS) --gc-sections
 
