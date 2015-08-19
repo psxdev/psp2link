@@ -192,14 +192,17 @@ int file_choose(const char *start_path, char *chosen_file, const char *title, co
 					dir_up(cur_path);
 				} else {
 					char new_path[PATH_MAX];
-					sprintf(new_path, "%s/%s", cur_path, entry->name);
+					// no valid elf with new toolchain with sprintf(new_path, "%s/%s", cur_path, entry->name);
+					sceClibSnprintf(new_path, PATH_MAX, "%s/%s", cur_path, entry->name);
 					strcpy(cur_path, new_path);
 				}
 				file_list_empty(&list);
 				file_list_build(cur_path, &list, supported_ext);
 				selected = 0;
 			} else if (entry->supported) {
-				sprintf(chosen_file, "%s/%s", cur_path, entry->name);
+				// no valid elf with new toolchain with sprintfsprintf(chosen_file, "%s/%s", cur_path, entry->name);
+				sceClibSnprintf(chosen_file,PATH_MAX, "%s/%s", cur_path, entry->name);
+				
 				file_list_empty(&list);
 				return 1;
 			}

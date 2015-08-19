@@ -7,7 +7,7 @@ TARGET	:= psp2linksample
 OBJS= main.o font.o font_data.o file_chooser.o
 LIBS=-lvita2d -lpng -lz -lSceCtrl_stub -lSceDisplay_stub -lSceGxm_stub -lSceNet_stub -lSceNetCtl_stub -ldebugnet -lpsp2link
 
-PREFIX  = arm-none-eabi
+PREFIX  = arm-vita-eabi
 AS	= $(PREFIX)-as
 CC      = $(PREFIX)-gcc
 CXX	=$(PREFIX)-g++
@@ -20,14 +20,16 @@ ASFLAGS = $(CFLAGS) --gc-sections
 all: $(TARGET).velf
 
 $(TARGET).velf: $(TARGET).elf
-	psp2-fixup -q -S $< $@
-	
-
+#advice from xyzz strip before create elf
+	arm-vita-eabi-strip -g $<
+#i put db.json there use your location 
+	vita-elf-create  $< $@ $(VITASDK)/bin/db.json
+		
 $(TARGET).elf: $(OBJS)
-	$(CC)  $^  -o $@ $(CFLAGS) $(LIBS)
+	$(CC)   $^  $(CFLAGS) $(LIBS) -o $@ 
 
 clean:
 	@rm -rf $(TARGET).elf $(TARGET).velf $(OBJS) $(DATA)/*.h
 	
 copy:
-	cp $(TARGET).velf /usr/local/psp2unity/rejuvenate/homebrew.elf
+	cp $(TARGET).velf /usr/local/vitadev/rejuvenate/homebrew.elf

@@ -1,10 +1,10 @@
 TARGET_LIB = libpsp2link.a
 OBJS       = source/requests.o source/commands.o source/psp2link.o 
 INCLUDES   = include
-PREFIX  = arm-none-eabi
+PREFIX  = arm-vita-eabi
 CC      = $(PREFIX)-gcc
 AR      = $(PREFIX)-ar
-CFLAGS  = -O2 -Wall -specs=psp2.specs -I$(INCLUDES) 
+CFLAGS  = -O2 -Wall -I$(INCLUDES) 
 ASFLAGS = $(CFLAGS)
 
 all: $(TARGET_LIB)
@@ -17,6 +17,6 @@ clean:
 	@rm -rf $(TARGET_LIB) $(OBJS)
 
 install: $(TARGET_LIB)
-	@cp $(TARGET_LIB) $(PSP2SDK)/lib
-	@cp include/psp2link.h $(PSP2SDK)/include
+	@cp $(TARGET_LIB) $(VITASDK)/arm-vita-eabi/lib
+	@cp include/psp2link.h $(VITASDK)/arm-vita-eabi/include
 	@echo "Installed!"

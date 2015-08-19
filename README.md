@@ -5,7 +5,7 @@ PSP2LINK FOR VITA
  What does this do?
 ===================
  
-  psp2link is a library for PSP2 to communicate and use host file system with psp2client host tool. It is the same method that we used in ps2dev days, so basically it is the same protocol than ps2link and ps2client have been using since 2003.
+  psp2link is a library for vita to communicate and use host file system with psp2client host tool. It is the same method that we used in ps2dev days, so basically it is the same protocol than ps2link and ps2client have been using since 2003.
   
   Functions availables are defined like native sceIoxx functions so it is easy for homebrew developer to use these new functions:
   ```
@@ -29,7 +29,16 @@ PSP2LINK FOR VITA
 
  1) Compile and install library and include file
 
-  You need a psp2 toolchain installed in your environment , libdebugnet and libvita2d  installed and PSP2SDK must be defined. You will need psp2client linux/mac side tool installed on your system.
+  You need the new vita toolchain installed in your environment ,libdebugnet and libvita2d installed and VITASDK must be defined.
+
+   Experimental build scripts tested with osx are in:
+
+   [vitasdk-buildscripts] (https://github.com/psxdev/vitasdk-buildscripts)
+
+   After install it replace crt0.o from arm-vita-eabi/lib with this one than you has in  build-native/newlib/arm-vita-eabi/newlib/libc/sys/vita/crt0.o is inside of directory that you are using to compiling the toolchain
+
+   Toolchain is work in progress but it's time to switch to vitasdk
+  
   
   ```
   cd libpsp2link
@@ -128,6 +137,7 @@ PSP2LINK FOR VITA
   Special thanks goes to:
   
   - ps2dev old comrades. 
-  - All people collaborating in PSP2SDK: @17310, @xerpi, @frangar, @frtomtomdu80, @hykemthedemon , @SMOKE587, @Josh_Axey ... 
+  - All people who collaborated in PSP2SDK: @17310, @xerpi, @frangar, @frtomtomdu80, @hykemthedemon , @SMOKE587, @Josh_Axey ... 
   - font in logo from http://www.fontspace.com/nal/the-rave-is-in-your-pants
+  - xyzz for help with new toolchain
   
