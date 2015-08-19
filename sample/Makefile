@@ -5,7 +5,7 @@
 TARGET	:= psp2linksample
 
 OBJS= main.o font.o font_data.o file_chooser.o
-LIBS=-lvita2d -lpng -lz -ldebugnet -lpsp2link -lSceCtrl_stub -lSceDisplay_stub -lSceGxm_stub -lSceNet_stub -lSceNetCtl_stub 
+LIBS=-lvita2d -lm -lpng -lz -ldebugnet -lpsp2link -lSceCtrl_stub -lSceDisplay_stub -lSceGxm_stub -lSceNet_stub -lSceNetCtl_stub 
 
 PREFIX  = arm-vita-eabi
 AS	= $(PREFIX)-as
