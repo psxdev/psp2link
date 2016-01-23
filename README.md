@@ -29,16 +29,8 @@ PSP2LINK FOR VITA
 
  1) Compile and install library and include file
 
-  You need the new vita toolchain installed in your environment ,libdebugnet and libvita2d installed and VITASDK must be defined.
+  You need the last vita toolchain installed in your environment ,libdebugnet and libvita2d installed and VITASDK must be defined.
 
-   Experimental build scripts tested with osx are in:
-
-   [vitasdk-buildscripts] (https://github.com/psxdev/vitasdk-buildscripts)
-
-   After install it replace crt0.o from arm-vita-eabi/lib with this one than you has in  build-native/newlib/arm-vita-eabi/newlib/libc/sys/vita/crt0.o is inside of directory that you are using to compiling the toolchain
-
-   Toolchain is work in progress but it's time to switch to vitasdk
-  
   
   ```
   cd libpsp2link
@@ -60,10 +52,23 @@ PSP2LINK FOR VITA
   psp2client -h ipofyourvita listen 
   ```
   
+  Command protocol is implemented and you can extend it with your custom code. Examples can be run with:
+  
+  ```
+  psp2client -h ipofyourvita -t 5 execelf host0:filename 
+  ```
+  
+  ```
+  psp2client -h ipofyourvita -t 5 execsprx host0:filename 
+  ```
+  
+  ```
+  psp2client -h ipofyourvita -t 5 exit
+  ```
  
  You will see logs in terminal window output from your PlayStation Vita using libdebugnet udp log feauture and you can browse over folder in your hard disk.
  
- Sample is showing only browser example you have full io r/w access to your hard disk
+ Sample is showing only browser example you have full io r/w access to your hard disk and you can test how commands can be implemented
  
  ```
  ./psp2client -h yourvitaip listen
@@ -72,7 +77,6 @@ PSP2LINK FOR VITA
  [INFO]: Waiting for connection
  [INFO]: psp2link connected  1
  [DEBUG]: dir open req (host0:/usr/local)
- aqui
  [DEBUG]: dir open reply received (ret 0)
  [DEBUG]: dir read req (0)
  [DEBUG]: dir read reply received (ret 1)
@@ -117,6 +121,30 @@ PSP2LINK FOR VITA
  [DEBUG]: psp2link_file: dir close req (fd: 0)
  [DEBUG]: dir close reply received (ret 0)
  ```
+ 
+ ```
+ ./psp2client -h yourvitaip -t 10 execelf host0:README.md
+ [ERROR]: [PSP2LINK] Client reconnected
+ [INFO]: [PSP2LINK] sock psp2link_fileio set 124 connected 1
+ [INFO]: [PSP2LINK] Waiting for connection
+ [DEBUG]: [PSP2LINK] commands listener received packet size (266)
+ [DEBUG]: [PSP2LINK] Received command execelf argc=1 argv=host0:README.md
+ [DEBUG]: [PSP2LINK] file open req (host0:README.md, 1 0)
+ Opening README.md flags 0
+ Open return 5
+ [DEBUG]: [PSP2LINK] file open reply received (ret 5)
+ [DEBUG]: [PSP2LINK] file lseek req (fd: 5)
+ 3382 result of lseek 0 offset 2 whence
+ [DEBUG]: [PSP2LINK] psp2link_lseek_file: lseek reply received (ret 3382)
+ [DEBUG]: [PSP2LINK] file lseek req (fd: 5)
+ 0 result of lseek 0 offset 0 whence
+ [DEBUG]: [PSP2LINK] psp2link_lseek_file: lseek reply received (ret 0)
+ [DEBUG]: [PSP2LINK] psp2link_read_file: Reply said there's 3382 bytes to read (wanted 3382)
+ [DEBUG]: [PSP2LINK] psp2link_file: file close req (fd: 5)
+ [DEBUG]: [PSP2LINK] psp2link_close_file: close reply received (ret 0)
+ [DEBUG]: [PSP2LINK] commands listener waiting for next command
+ ```
+ 
  
  5) ready to have a lot of fun :P
  
