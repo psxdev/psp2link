@@ -21,14 +21,15 @@
 
 
 #include <psp2link.h>
+#include <debugnet.h>
+
 #include "logo.h"
 
 //#define imgpath "cache0:/VitaDefilerClient/Documents/psp2link.png"
-
-PSP2_MODULE_INFO(0, 0, "psp2linkSample");
 static const char *supported_ext[] = {
 	"elf", NULL
 };
+
 //enable debug level 3
 #define LOGLEVEL 3
 int main()
@@ -37,26 +38,29 @@ int main()
 	char rom_path[256];
 	//ip mac/linux, port udp, port request, port command, log level
 	ret=psp2LinkInit("192.168.1.3",0x4711,0x4712,0x4712,LOGLEVEL);
+	if(!ret)
+	{
+		psp2LinkFinish();
+		return ret;
+	}
 	debugNetPrintf(DEBUG,"Test debug level %d\n",ret);
 	vita2d_init();
 	
 	vita2d_set_clear_color(RGBA8(0x40, 0x40, 0x40, 0xFF));
-    vita2d_texture *splash = vita2d_create_empty_texture(960, 544);
+	vita2d_texture *splash = vita2d_create_empty_texture(960, 544);
 	//splash = vita2d_load_PNG_file(imgpath);
 	splash = vita2d_load_PNG_buffer(psp2link_png);
 	
- 
-           
 	
-	while(!psp2LinkIsConnected())
+	while(!psp2LinkRequestsIsConnected())
 	{
 		vita2d_start_drawing();
 		vita2d_clear_screen();
-        vita2d_draw_texture(splash, 0, 0);
-        vita2d_end_drawing();
-        vita2d_swap_buffers();
-		
+		vita2d_draw_texture(splash, 0, 0);
+		vita2d_end_drawing();
+		vita2d_swap_buffers();
 	}
+	
 	while(1)
 	{
 		file_choose(

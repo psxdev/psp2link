@@ -144,6 +144,18 @@ typedef struct
     char name[256];
 } __attribute__((packed)) psp2link_pkt_dread_rly;
 
+#define PSP2LINK_EXECELF_CMD 0xbabe0201
+#define	PSP2LINK_EXECSPRX_CMD 0xbabe0202
+#define	PSP2LINK_EXIT_CMD 0xbabe0203
+
+
+typedef struct
+{
+    unsigned int cmd;
+    unsigned short len;
+    int  argc;
+    char argv[PSP2LINK_MAX_PATH];
+} __attribute__((packed)) psp2link_pkt_exec_cmd;
 
 
 #define PSP2LINK_MAX_WRITE_SEGMENT (65535 - sizeof(psp2link_pkt_write_req))  //1460

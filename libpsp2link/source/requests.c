@@ -21,6 +21,8 @@
 #include <psp2/io/stat.h>
 #include <debugnet.h>
 #include "psp2link_internal.h"
+#include "psp2link.h"
+
 
 #define PACKET_MAXSIZE 4096
 
@@ -28,58 +30,75 @@ static char send_packet[PACKET_MAXSIZE] __attribute__((aligned(16)));
 static char recv_packet[PACKET_MAXSIZE] __attribute__((aligned(16)));
 unsigned int remote_pc_addr = 0xffffffff;
 
-int server_requests_sock = -1;
-int psp2link_fileio_sock = -1;
-extern int psp2link_fileio_active;
-extern int psp2link_requests_port;
-int  no_connected=0;
+//int server_requests_sock = -1;
+//int psp2link_fileio_sock = -1;
+//extern int psp2link_fileio_active;
+//extern int psp2link_requests_port;
 
-int psp2LinkIsConnected()
+
+extern psp2LinkConfiguration *configuration;
+int psp2link_requests_connected;
+
+
+int psp2LinkRequestsIsConnected()
 {
- 	if(no_connected)
+ 	if(psp2link_requests_connected)
  	{
-		debugNetPrintf(INFO,"psp2link connected  %d\n", no_connected);
+		debugNetPrintf(INFO,"[PSP2LINK] psp2link connected  %d\n", psp2link_requests_connected);
  	}
 	else
 	{
-       // debugNetPrintf(INFO,"psp2link is not connected   %d\n", no_connected);
-		
-		
+       // debugNetPrintf(INFO,"psp2link is not connected   %d\n", psp2link_requests_connected);
 	}
-	return no_connected;
+	return psp2link_requests_connected;
+}
+void psp2LinkRequestsAbort()
+{
+	int ret;
+	if(psp2LinkGetValue(REQUESTS_SOCK))
+	{
+		debugNetPrintf(DEBUG,"[PSP2LINK] Aborting psp2link_requests_sock\n");
+		
+		ret = sceNetSocketAbort(psp2LinkGetValue(REQUESTS_SOCK),1);
+		if (ret < 0) {
+			debugNetPrintf(DEBUG,"[PSP2LINK] abort psp2link_requests_sock returned error 0x%08X\n", ret);
+		}
+	}
 }
 void psp2link_close_socket(void)
 {
 	int ret;
 
-	ret = sceNetSocketClose(psp2link_fileio_sock);
+	ret = sceNetSocketClose(psp2LinkGetValue(FILEIO_SOCK));
 	if (ret < 0) {
-		debugNetPrintf(ERROR,"disconnect returned error %d\n", ret);
+		debugNetPrintf(ERROR,"[PSP2LINK] disconnect returned error %d\n", ret);
 	}
-	psp2link_fileio_sock = -1;
+	configuration->psp2link_fileio_sock = -1;
 	
 }
 
 
-void psp2link_close_fsys(void)
+/*void psp2link_close_fsys(void)
 {
-	if (psp2link_fileio_sock > 0) {
-		sceNetSocketClose(psp2link_fileio_sock);
+	if (psp2LinkGetValue(FILEIO_SOCK) > 0) {
+		sceNetSocketClose(psp2LinkGetValue(FILEIO_SOCK));
 	}
-	psp2link_fileio_active = 0;
+	configuration->psp2link_fileio_active = 0;
 	return;
-}
+}*/
 
 static inline int psp2link_send(int sock, void *buf, int len, int flag)
 {
 	int ret;
 	ret = sceNetSend(sock, buf, len, flag);
-	if (ret < 0) {
-		debugNetPrintf(ERROR,"sceNetSend error %d\n", ret);
+	if (ret < 0) 
+	{
+		debugNetPrintf(ERROR,"[PSP2LINK] sceNetSend error %d\n", ret);
 		psp2link_close_socket();
 		return -1;
 	}
-	else {
+	else 
+	{
 		return ret;
 	}
 }
@@ -92,10 +111,12 @@ int psp2link_recv_bytes(int sock, char *buf, int bytes)
 
 	left = bytes;
 
-	while (left > 0) {
-		len = sceNetRecv(sock, &buf[bytes - left], left, PSP2_NET_MSG_WAITALL);
-		if (len < 0) {
-			debugNetPrintf(ERROR,"psp2link_recv_bytes error!! 0x%08X\n",len);
+	while (left > 0) 
+	{
+		len = sceNetRecv(sock, &buf[bytes - left], left, SCE_NET_MSG_WAITALL);
+		if (len < 0) 
+		{
+			debugNetPrintf(ERROR,"[PSP2LINK] psp2link_recv_bytes error!! 0x%08X\n",len);
 			return -1;
 		}
 		left -= len;
@@ -114,12 +135,12 @@ int psp2link_accept_pkt(int sock, char *buf, int len, int pkt_type)
 
 	length = psp2link_recv_bytes(sock, buf, sizeof(psp2link_pkt_hdr));
 	if (length < 0) {
-		debugNetPrintf(ERROR,"psp2link_accept_pkt recv error\n");
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_accept_pkt recv error\n");
 		return -1;
 	}
 
 	if (length < sizeof(psp2link_pkt_hdr)) {
-		debugNetPrintf(ERROR,"did not receive a full header!!!! " "Fix this! (%d)\n", length);
+		debugNetPrintf(ERROR,"[PSP2LINK] did not receive a full header!!!! " "Fix this! (%d)\n", length);
 	}
     
 	hdr = (psp2link_pkt_hdr *)buf;
@@ -127,12 +148,12 @@ int psp2link_accept_pkt(int sock, char *buf, int len, int pkt_type)
 	hlen = sceNetNtohs(hdr->len);
 
 	if (hcmd != pkt_type) {
-		debugNetPrintf(ERROR,"psp2link_accept_pkt: Expected %x, got %x\n",pkt_type, hcmd);
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_accept_pkt: Expected %x, got %x\n",pkt_type, hcmd);
 		return 0;
 	}
 
 	if (hlen > len) {
-		debugNetPrintf(ERROR,"psp2link_accept_pkt: hdr->len is too large!! " "(%d, can only receive %d)\n", hlen, len);
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_accept_pkt: hdr->len is too large!! " "(%d, can only receive %d)\n", hlen, len);
 		return 0;
 	}
 
@@ -140,12 +161,12 @@ int psp2link_accept_pkt(int sock, char *buf, int len, int pkt_type)
 	length = psp2link_recv_bytes(sock, buf + sizeof(psp2link_pkt_hdr),hlen - sizeof(psp2link_pkt_hdr));
 
 	if (length < 0) {
-		debugNetPrintf(ERROR,"accept recv2 error!!\n");
+		debugNetPrintf(ERROR,"[PSP2LINK] accept recv2 error!!\n");
 		return 0;
 	}
 
 	if (length < (hlen - sizeof(psp2link_pkt_hdr))) {
-		debugNetPrintf(ERROR,"psp2link_accept_pkt: Did not receive full packet!!! " ,"Fix this! (%d)\n", length);
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_accept_pkt: Did not receive full packet!!! " ,"Fix this! (%d)\n", length);
 	}
 
 	return 1;
@@ -155,13 +176,13 @@ int psp2LinkIoOpen(const char *file, int flags, SceMode mode)
 	psp2link_pkt_open_req *openreq;
 	psp2link_pkt_file_rly *openrly;
 
-	if (psp2link_fileio_sock < 0) {
-		debugNetPrintf(DEBUG,"file open req (%s, %x) but psp2link_fileio_sock is not active\n", file, flags);
+	if (psp2LinkGetValue(FILEIO_SOCK) < 0) {
+		debugNetPrintf(DEBUG,"[PSP2LINK] file open req (%s, %x) but psp2link_fileio_sock is not active\n", file, flags);
 		
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"file open req (%s, %x %x)\n", file, flags, mode);
+	debugNetPrintf(DEBUG,"[PSP2LINK] file open req (%s, %x %x)\n", file, flags, mode);
 
 	openreq = (psp2link_pkt_open_req *)&send_packet[0];
 
@@ -172,18 +193,18 @@ int psp2LinkIoOpen(const char *file, int flags, SceMode mode)
 	strncpy(openreq->path, file, PSP2LINK_MAX_PATH);
 	openreq->path[PSP2LINK_MAX_PATH - 1] = 0; // Make sure it's null-terminated
 
-	if (psp2link_send(psp2link_fileio_sock, openreq, sizeof(psp2link_pkt_open_req), PSP2_NET_MSG_DONTWAIT) < 0) {
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), openreq, sizeof(psp2link_pkt_open_req), SCE_NET_MSG_DONTWAIT) < 0) {
 		return -1;
 	}
 
-	if (!psp2link_accept_pkt(psp2link_fileio_sock, recv_packet, sizeof(psp2link_pkt_file_rly), PSP2LINK_OPEN_RLY)) {
-		debugNetPrintf(ERROR,"psp2link_file: psp2link_open_file: did not receive OPEN_RLY\n");
+	if (!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), recv_packet, sizeof(psp2link_pkt_file_rly), PSP2LINK_OPEN_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_file: psp2link_open_file: did not receive OPEN_RLY\n");
 		return -1;
 	}
 
 	openrly = (psp2link_pkt_file_rly *)recv_packet;
     
-	debugNetPrintf(DEBUG,"file open reply received (ret %d)\n", sceNetNtohl(openrly->retval));
+	debugNetPrintf(DEBUG,"[PSP2LINK] file open reply received (ret %d)\n", sceNetNtohl(openrly->retval));
 
 	return sceNetNtohl(openrly->retval);	
 	
@@ -196,11 +217,11 @@ int psp2LinkIoClose(SceUID fd)
 	psp2link_pkt_file_rly *closerly;
 
 
-	if (psp2link_fileio_sock < 0) {
+	if (psp2LinkGetValue(FILEIO_SOCK) < 0) {
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"psp2link_file: file close req (fd: %d)\n", fd);
+	debugNetPrintf(DEBUG,"[PSP2LINK] psp2link_file: file close req (fd: %d)\n", fd);
 
 	closereq = (psp2link_pkt_close_req *)&send_packet[0];
 	closerly = (psp2link_pkt_file_rly *)&recv_packet[0];
@@ -209,16 +230,16 @@ int psp2LinkIoClose(SceUID fd)
 	closereq->len = sceNetHtons((unsigned short)sizeof(psp2link_pkt_close_req));
 	closereq->fd = sceNetHtonl(fd);
 
-	if (psp2link_send(psp2link_fileio_sock, closereq, sizeof(psp2link_pkt_close_req), PSP2_NET_MSG_DONTWAIT) < 0) {
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), closereq, sizeof(psp2link_pkt_close_req), SCE_NET_MSG_DONTWAIT) < 0) {
 		return -1;
 	}
 
-	if(!psp2link_accept_pkt(psp2link_fileio_sock, (char *)closerly, sizeof(psp2link_pkt_file_rly), PSP2LINK_CLOSE_RLY)) {
-		debugNetPrintf(ERROR,"psp2link_close_file: did not receive PSP2LINK_CLOSE_RLY\n");
+	if(!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), (char *)closerly, sizeof(psp2link_pkt_file_rly), PSP2LINK_CLOSE_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_close_file: did not receive PSP2LINK_CLOSE_RLY\n");
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"psp2link_close_file: close reply received (ret %d)\n", sceNetNtohl(closerly->retval));
+	debugNetPrintf(DEBUG,"[PSP2LINK] psp2link_close_file: close reply received (ret %d)\n", sceNetNtohl(closerly->retval));
 
 	return sceNetNtohl(closerly->retval);
 	
@@ -227,53 +248,50 @@ int psp2LinkIoClose(SceUID fd)
 }
 int psp2LinkIoRead(SceUID fd, void *data, SceSize size)
 {
-	int readbytes;
 	int nbytes;
 	int i;
 	psp2link_pkt_read_req *readcmd;
 	psp2link_pkt_read_rly *readrly;
 
 
-	if (psp2link_fileio_sock < 0) {
+	if (psp2LinkGetValue(FILEIO_SOCK) < 0) {
 		return -1;
 	}
 
 	readcmd = (psp2link_pkt_read_req *)&send_packet[0];
 	readrly = (psp2link_pkt_read_rly *)&recv_packet[0];
-	readbytes = 0;
 
 	readcmd->cmd = sceNetHtonl(PSP2LINK_READ_CMD);
 	readcmd->len = sceNetHtons((unsigned short)sizeof(psp2link_pkt_read_req));
 	readcmd->fd = sceNetHtonl(fd);
 
-	readbytes = 0;
 
 	if (size < 0) {
-		debugNetPrintf(ERROR,"psp2link_read_file: illegal req!! (whish to read < 0 bytes!)\n");
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_read_file: illegal req!! (whish to read < 0 bytes!)\n");
 		return -1;
 	}
 
 	readcmd->nbytes = sceNetHtonl(size);
 
-	i = psp2link_send(psp2link_fileio_sock, readcmd, sizeof(psp2link_pkt_read_req), PSP2_NET_MSG_DONTWAIT);
+	i = psp2link_send(psp2LinkGetValue(FILEIO_SOCK), readcmd, sizeof(psp2link_pkt_read_req), SCE_NET_MSG_DONTWAIT);
 	if (i<0)
 	{
-		debugNetPrintf(ERROR,"psp2link_file: psp2link_read_file: send failed (%d)\n", i);
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_file: psp2link_read_file: send failed (%d)\n", i);
 		return -1;
 	}
 
-	if(!psp2link_accept_pkt(psp2link_fileio_sock, (char *)readrly, sizeof(psp2link_pkt_read_rly), PSP2LINK_READ_RLY)) {
-		debugNetPrintf(ERROR,"psp2link_read_file: " "did not receive PSP2LINK_READ_RLY\n");
+	if(!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), (char *)readrly, sizeof(psp2link_pkt_read_rly), PSP2LINK_READ_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_read_file: " "did not receive PSP2LINK_READ_RLY\n");
 		return -1;
 	}
 
 	nbytes = sceNetNtohl(readrly->nbytes);
-	debugNetPrintf(DEBUG,"psp2link_read_file: Reply said there's %d bytes to read " "(wanted %d)\n", nbytes, size);
+	debugNetPrintf(DEBUG,"[PSP2LINK] psp2link_read_file: Reply said there's %d bytes to read " "(wanted %d)\n", nbytes, size);
 
 	// Now read the actual file data
-	i = psp2link_recv_bytes(psp2link_fileio_sock, &data[0], nbytes);
+	i = psp2link_recv_bytes(psp2LinkGetValue(FILEIO_SOCK), &data[0], nbytes);
 	if (i < 0) {
-    	debugNetPrintf(ERROR,"psp2link_read_file, data read error\n");
+    	debugNetPrintf(ERROR,"[PSP2LINK] psp2link_read_file, data read error\n");
     	return -1;
 	}
 	return nbytes;
@@ -287,11 +305,11 @@ int psp2LinkIoWrite(SceUID fd, const void *data, SceSize size)
 	int nbytes;
 	int retval;
 
-	if (psp2link_fileio_sock < 0) {
+	if (psp2LinkGetValue(FILEIO_SOCK) < 0) {
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"file write req (fd: %d)\n", fd);
+	debugNetPrintf(DEBUG,"[PSP2LINK] file write req (fd: %d)\n", fd);
 
 	writecmd = (psp2link_pkt_write_req *)&send_packet[0];
 	writerly = (psp2link_pkt_file_rly *)&recv_packet[0];
@@ -317,32 +335,32 @@ int psp2LinkIoWrite(SceUID fd, const void *data, SceSize size)
 		writecmd->nbytes = sceNetHtonl(nbytes);
 #ifdef ZEROCOPY
 		/* Send the packet header.  */
-		if (psp2link_send(psp2link_fileio_sock, writecmd, hlen, PSP2_NET_MSG_DONTWAIT) < 0)
+		if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), writecmd, hlen, SCE_NET_MSG_DONTWAIT) < 0)
 			return -1;
 		/* Send the write() data.  */
-		if (psp2link_send(psp2link_fileio_sock, &data[writtenbytes], nbytes, PSP2_NET_MSG_DONTWAIT) < 0)
+		if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), &data[writtenbytes], nbytes, SCE_NET_MSG_DONTWAIT) < 0)
 			return -1;
 #else
 		// Copy data to the acutal packet
 		memcpy(&send_packet[sizeof(psp2link_pkt_write_req)], &data[writtenbytes],nbytes);
 
-		if (psp2link_send(psp2link_fileio_sock, writecmd, hlen + nbytes, PSP2_NET_MSG_DONTWAIT) < 0)
+		if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), writecmd, hlen + nbytes, SCE_NET_MSG_DONTWAIT) < 0)
 			return -1;
 #endif
 
 
 		// Get reply
-		if(!psp2link_accept_pkt(psp2link_fileio_sock, (char *)writerly, sizeof(psp2link_pkt_file_rly), PSP2LINK_WRITE_RLY)) {
-			debugNetPrintf(ERROR,"psp2link_write_file: " "did not receive PSP2LINK_WRITE_RLY\n");
+		if(!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), (char *)writerly, sizeof(psp2link_pkt_file_rly), PSP2LINK_WRITE_RLY)) {
+			debugNetPrintf(ERROR,"[PSP2LINK] psp2link_write_file: " "did not receive PSP2LINK_WRITE_RLY\n");
 			return -1;
 		}
 		retval = sceNetNtohl(writerly->retval);
 
-		debugNetPrintf(DEBUG,"wrote %d bytes (asked for %d)\n", retval, nbytes);
+		debugNetPrintf(DEBUG,"[PSP2LINK] wrote %d bytes (asked for %d)\n", retval, nbytes);
 
 		if (retval < 0) {
 			// Error
-			debugNetPrintf(ERROR,"psp2link_write_file: received error on write req (%d)\n",retval);
+			debugNetPrintf(ERROR,"[PSP2LINK] psp2link_write_file: received error on write req (%d)\n",retval);
 			return retval;
 		}
 
@@ -363,11 +381,11 @@ int psp2LinkIoLseek(SceUID fd, int offset, int whence)
 	psp2link_pkt_file_rly *lseekrly;
 
 
-	if (psp2link_fileio_sock < 0) {
+	if (psp2LinkGetValue(REQUESTS_SOCK) < 0) {
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"file lseek req (fd: %d)\n", fd);
+	debugNetPrintf(DEBUG,"[PSP2LINK] file lseek req (fd: %d)\n", fd);
 
 	lseekreq = (psp2link_pkt_lseek_req *)&send_packet[0];
 	lseekrly = (psp2link_pkt_file_rly *)&recv_packet[0];
@@ -378,16 +396,16 @@ int psp2LinkIoLseek(SceUID fd, int offset, int whence)
 	lseekreq->offset = sceNetHtonl(offset);
 	lseekreq->whence = sceNetHtonl(whence);
 
-	if(psp2link_send(psp2link_fileio_sock, lseekreq, sizeof(psp2link_pkt_lseek_req), PSP2_NET_MSG_DONTWAIT) < 0) {
+	if(psp2link_send(psp2LinkGetValue(FILEIO_SOCK), lseekreq, sizeof(psp2link_pkt_lseek_req), SCE_NET_MSG_DONTWAIT) < 0) {
 		return -1;
 	}
 
-	if(!psp2link_accept_pkt(psp2link_fileio_sock, (char *)lseekrly,sizeof(psp2link_pkt_file_rly), PSP2LINK_LSEEK_RLY)) {
-		debugNetPrintf(ERROR,"psp2link_lseek_file: did not receive PSP2LINK_LSEEK_RLY\n");
+	if(!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), (char *)lseekrly,sizeof(psp2link_pkt_file_rly), PSP2LINK_LSEEK_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_lseek_file: did not receive PSP2LINK_LSEEK_RLY\n");
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"psp2link_lseek_file: lseek reply received (ret %d)\n",sceNetNtohl(lseekrly->retval));
+	debugNetPrintf(DEBUG,"[PSP2LINK] psp2link_lseek_file: lseek reply received (ret %d)\n",sceNetNtohl(lseekrly->retval));
 
 	return sceNetNtohl(lseekrly->retval);
 	
@@ -397,11 +415,11 @@ int psp2LinkIoRemove(const char *file)
 	psp2link_pkt_remove_req *removereq;
 	psp2link_pkt_file_rly *removerly;
 
-	if (psp2link_fileio_sock < 0) {
+	if (psp2LinkGetValue(REQUESTS_SOCK) < 0) {
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"file remove req (%s)\n", file);
+	debugNetPrintf(DEBUG,"[PSP2LINK] file remove req (%s)\n", file);
 
 	removereq = (psp2link_pkt_remove_req *)&send_packet[0];
 
@@ -411,17 +429,17 @@ int psp2LinkIoRemove(const char *file)
 	strncpy(removereq->name, file, PSP2LINK_MAX_PATH);
 	removereq->name[PSP2LINK_MAX_PATH - 1] = 0; // Make sure it's null-terminated
 
-	if (psp2link_send(psp2link_fileio_sock, removereq, sizeof(psp2link_pkt_remove_req), PSP2_NET_MSG_DONTWAIT) < 0) {
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), removereq, sizeof(psp2link_pkt_remove_req), SCE_NET_MSG_DONTWAIT) < 0) {
 		return -1;
 	}
 
-	if (!psp2link_accept_pkt(psp2link_fileio_sock, recv_packet, sizeof(psp2link_pkt_file_rly), PSP2LINK_REMOVE_RLY)) {
-		debugNetPrintf(ERROR,"psp2link_remove: did not receive REMOVE_RLY\n");
+	if (!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), recv_packet, sizeof(psp2link_pkt_file_rly), PSP2LINK_REMOVE_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_remove: did not receive REMOVE_RLY\n");
 		return -1;
 	}
 
 	removerly = (psp2link_pkt_file_rly *)recv_packet;
-	debugNetPrintf(DEBUG,"file remove reply received (ret %d)\n", sceNetNtohl(removerly->retval));
+	debugNetPrintf(DEBUG,"[PSP2LINK] file remove reply received (ret %d)\n", sceNetNtohl(removerly->retval));
 	return sceNetNtohl(removerly->retval);
 }
 int psp2LinkIoMkdir(const char *dirname, SceMode mode)
@@ -429,11 +447,11 @@ int psp2LinkIoMkdir(const char *dirname, SceMode mode)
 	psp2link_pkt_mkdir_req *mkdirreq;
 	psp2link_pkt_file_rly *mkdirrly;
 
-	if (psp2link_fileio_sock < 0) {
+	if (psp2LinkGetValue(REQUESTS_SOCK) < 0) {
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"make dir req (%s)\n", dirname);
+	debugNetPrintf(DEBUG,"[PSP2LINK] make dir req (%s)\n", dirname);
 	
 	mkdirreq = (psp2link_pkt_mkdir_req *)&send_packet[0];
 
@@ -444,17 +462,17 @@ int psp2LinkIoMkdir(const char *dirname, SceMode mode)
 	strncpy(mkdirreq->name, dirname, PSP2LINK_MAX_PATH);
 	mkdirreq->name[PSP2LINK_MAX_PATH - 1] = 0; // Make sure it's null-terminated
 
-	if (psp2link_send(psp2link_fileio_sock, mkdirreq, sizeof(psp2link_pkt_mkdir_req), PSP2_NET_MSG_DONTWAIT) < 0) {
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), mkdirreq, sizeof(psp2link_pkt_mkdir_req), SCE_NET_MSG_DONTWAIT) < 0) {
 		return -1;
 	}
 
-	if (!psp2link_accept_pkt(psp2link_fileio_sock, recv_packet, sizeof(psp2link_pkt_file_rly), PSP2LINK_MKDIR_RLY)) {
-		debugNetPrintf(ERROR,"psp2link_mkdir: did not receive MKDIR_RLY\n");
+	if (!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), recv_packet, sizeof(psp2link_pkt_file_rly), PSP2LINK_MKDIR_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_mkdir: did not receive MKDIR_RLY\n");
 		return -1;
 	}
 
 	mkdirrly = (psp2link_pkt_file_rly *)recv_packet;
-	debugNetPrintf(DEBUG,"psp2link_file: make dir reply received (ret %d)\n", sceNetNtohl(mkdirrly->retval));
+	debugNetPrintf(DEBUG,"[PSP2LINK] psp2link_file: make dir reply received (ret %d)\n", sceNetNtohl(mkdirrly->retval));
 	return sceNetNtohl(mkdirrly->retval);
 }
 int psp2LinkIoRmdir(const char *dirname)
@@ -462,11 +480,11 @@ int psp2LinkIoRmdir(const char *dirname)
 	psp2link_pkt_rmdir_req *rmdirreq;
 	psp2link_pkt_file_rly *rmdirrly;
 
-	if (psp2link_fileio_sock < 0) {
+	if (psp2LinkGetValue(REQUESTS_SOCK) < 0) {
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"psp2link_file: remove dir req (%s)\n", dirname);
+	debugNetPrintf(DEBUG,"[PSP2LINK] psp2link_file: remove dir req (%s)\n", dirname);
 
 	rmdirreq = (psp2link_pkt_rmdir_req *)&send_packet[0];
 
@@ -476,17 +494,17 @@ int psp2LinkIoRmdir(const char *dirname)
 	strncpy(rmdirreq->name, dirname, PSP2LINK_MAX_PATH);
 	rmdirreq->name[PSP2LINK_MAX_PATH - 1] = 0; // Make sure it's null-terminated
 
-	if (psp2link_send(psp2link_fileio_sock, rmdirreq, sizeof(psp2link_pkt_rmdir_req), PSP2_NET_MSG_DONTWAIT) < 0) {
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), rmdirreq, sizeof(psp2link_pkt_rmdir_req), SCE_NET_MSG_DONTWAIT) < 0) {
 		return -1;
 	}
 
-	if (!psp2link_accept_pkt(psp2link_fileio_sock, recv_packet, sizeof(psp2link_pkt_file_rly), PSP2LINK_RMDIR_RLY)) {
-		debugNetPrintf(ERROR,"psp2link_file: psp2link_rmdir: did not receive RMDIR_RLY\n");
+	if (!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), recv_packet, sizeof(psp2link_pkt_file_rly), PSP2LINK_RMDIR_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_file: psp2link_rmdir: did not receive RMDIR_RLY\n");
 		return -1;
 	}
 
     rmdirrly = (psp2link_pkt_file_rly *)recv_packet;
-	debugNetPrintf(DEBUG,"psp2link_file: remove dir reply received (ret %d)\n", sceNetNtohl(rmdirrly->retval));
+	debugNetPrintf(DEBUG,"[PSP2LINK] psp2link_file: remove dir reply received (ret %d)\n", sceNetNtohl(rmdirrly->retval));
 	return sceNetNtohl(rmdirrly->retval);
 }
 int psp2LinkIoDopen(const char *dirname)
@@ -494,11 +512,11 @@ int psp2LinkIoDopen(const char *dirname)
 	psp2link_pkt_open_req *openreq;
 	psp2link_pkt_file_rly *openrly;
 
-	if (psp2link_fileio_sock < 0) {
+	if (psp2LinkGetValue(REQUESTS_SOCK) < 0) {
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"dir open req (%s)\n", dirname);
+	debugNetPrintf(DEBUG,"[PSP2LINK] dir open req (%s)\n", dirname);
 
 	openreq = (psp2link_pkt_open_req *)&send_packet[0];
 
@@ -509,18 +527,18 @@ int psp2LinkIoDopen(const char *dirname)
 	strncpy(openreq->path, dirname, PSP2LINK_MAX_PATH);
 	openreq->path[PSP2LINK_MAX_PATH - 1] = 0; // Make sure it's null-terminated
 
-	if (psp2link_send(psp2link_fileio_sock, openreq, sizeof(psp2link_pkt_open_req), PSP2_NET_MSG_DONTWAIT) < 0) {
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), openreq, sizeof(psp2link_pkt_open_req), SCE_NET_MSG_DONTWAIT) < 0) {
 		return -1;
 	}
 
-	if (!psp2link_accept_pkt(psp2link_fileio_sock, recv_packet, sizeof(psp2link_pkt_file_rly), PSP2LINK_OPENDIR_RLY)) {
-		debugNetPrintf(ERROR,"psp2link_open_dir: did not receive OPENDIR_RLY\n");
+	if (!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), recv_packet, sizeof(psp2link_pkt_file_rly), PSP2LINK_OPENDIR_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_open_dir: did not receive OPENDIR_RLY\n");
 		return -1;
 	}
 
 	openrly = (psp2link_pkt_file_rly *)recv_packet;
     
-	debugNetPrintf(DEBUG,"dir open reply received (ret %d)\n", sceNetNtohl(openrly->retval));
+	debugNetPrintf(DEBUG,"[PSP2LINK] dir open reply received (ret %d)\n", sceNetNtohl(openrly->retval));
 
 	return sceNetNtohl(openrly->retval);
 }
@@ -530,11 +548,11 @@ int psp2LinkIoDread(SceUID fd, SceIoDirent *dir)
 	psp2link_pkt_dread_rly *dirrly;
 	SceIoDirent *dirent;
 
-	if (psp2link_fileio_sock < 0) {
+	if (psp2LinkGetValue(REQUESTS_SOCK) < 0) {
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"dir read req (%x)\n", fd);
+	debugNetPrintf(DEBUG,"[PSP2LINK] dir read req (%x)\n", fd);
 
 	dirreq = (psp2link_pkt_dread_req *)&send_packet[0];
 
@@ -543,18 +561,18 @@ int psp2LinkIoDread(SceUID fd, SceIoDirent *dir)
 	dirreq->len = sceNetHtons((unsigned short)sizeof(psp2link_pkt_dread_req));
 	dirreq->fd = sceNetHtonl(fd);
 
-	if (psp2link_send(psp2link_fileio_sock, dirreq, sizeof(psp2link_pkt_dread_req), PSP2_NET_MSG_DONTWAIT) < 0) {
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), dirreq, sizeof(psp2link_pkt_dread_req), SCE_NET_MSG_DONTWAIT) < 0) {
 		return -1;
 	}
 
-	if (!psp2link_accept_pkt(psp2link_fileio_sock, recv_packet, sizeof(psp2link_pkt_dread_rly), PSP2LINK_READDIR_RLY)) {
-		debugNetPrintf(ERROR,"psp2link_read_dir: did not receive OPENDIR_RLY\n");
+	if (!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), recv_packet, sizeof(psp2link_pkt_dread_rly), PSP2LINK_READDIR_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_read_dir: did not receive OPENDIR_RLY\n");
 		return -1;
 	}
 
 	dirrly = (psp2link_pkt_dread_rly *)recv_packet;
     
-	debugNetPrintf(DEBUG,"dir read reply received (ret %d)\n", sceNetNtohl(dirrly->retval));
+	debugNetPrintf(DEBUG,"[PSP2LINK] dir read reply received (ret %d)\n", sceNetNtohl(dirrly->retval));
 
 	
 	dirent = (SceIoDirent *) dir;
@@ -602,11 +620,11 @@ int psp2LinkIoDclose(SceUID fd)
 	psp2link_pkt_file_rly *closerly;
 
 
-	if (psp2link_fileio_sock < 0) {
+	if (psp2LinkGetValue(REQUESTS_SOCK) < 0) {
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"psp2link_file: dir close req (fd: %d)\n", fd);
+	debugNetPrintf(DEBUG,"[PSP2LINK] psp2link_file: dir close req (fd: %d)\n", fd);
 
 	closereq = (psp2link_pkt_close_req *)&send_packet[0];
 	closerly = (psp2link_pkt_file_rly *)&recv_packet[0];
@@ -615,16 +633,16 @@ int psp2LinkIoDclose(SceUID fd)
 	closereq->len = sceNetHtons((unsigned short)sizeof(psp2link_pkt_close_req));
 	closereq->fd = sceNetHtonl(fd);
 
-	if (psp2link_send(psp2link_fileio_sock, closereq, sizeof(psp2link_pkt_close_req), PSP2_NET_MSG_DONTWAIT) < 0) {
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), closereq, sizeof(psp2link_pkt_close_req), SCE_NET_MSG_DONTWAIT) < 0) {
 		return -1;
 	}
 
-	if(!psp2link_accept_pkt(psp2link_fileio_sock, (char *)closerly, sizeof(psp2link_pkt_file_rly), PSP2LINK_CLOSEDIR_RLY)) {
-		debugNetPrintf(ERROR,"psp2link_close_dir: did not receive PSP2LINK_CLOSEDIR_RLY\n");
+	if(!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), (char *)closerly, sizeof(psp2link_pkt_file_rly), PSP2LINK_CLOSEDIR_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_close_dir: did not receive PSP2LINK_CLOSEDIR_RLY\n");
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"dir close reply received (ret %d)\n", sceNetNtohl(closerly->retval));
+	debugNetPrintf(DEBUG,"[PSP2LINK] dir close reply received (ret %d)\n", sceNetNtohl(closerly->retval));
 
 	return sceNetNtohl(closerly->retval);
 }
@@ -633,73 +651,87 @@ int psp2link_requests_thread(SceSize args, void *argp)
 	int ret;
 	struct SceNetSockaddrIn serveraddr;
 	/* Create server socket */
-	server_requests_sock = sceNetSocket("requests_server_sock",PSP2_NET_AF_INET,PSP2_NET_SOCK_STREAM,0);
-	
+	configuration->psp2link_requests_sock = sceNetSocket("requests_server_sock",SCE_NET_AF_INET,SCE_NET_SOCK_STREAM,0);
+	if(psp2LinkGetValue(REQUESTS_SOCK)>=0)
+	{
+		debugNetPrintf(DEBUG,"[PSP2LINK] Created psp2link_requests_sock: %d\n", psp2LinkGetValue(REQUESTS_SOCK));
+		
+	}
 	memset(&serveraddr, 0, sizeof serveraddr);
   	
 	/* Fill the server's address */
-	serveraddr.sin_family = PSP2_NET_AF_INET;
-	serveraddr.sin_addr.s_addr = sceNetHtonl(PSP2_NET_INADDR_ANY);
-	serveraddr.sin_port = sceNetHtons(psp2link_requests_port);
+	serveraddr.sin_family = SCE_NET_AF_INET;
+	serveraddr.sin_addr.s_addr = sceNetHtonl(SCE_NET_INADDR_ANY);
+	serveraddr.sin_port = sceNetHtons(psp2LinkGetValue(REQUESTS_PORT));
 
 	/* Bind the server's address to the socket */
-	ret = sceNetBind(server_requests_sock, (SceNetSockaddr *)&serveraddr, sizeof(serveraddr));
+	ret = sceNetBind(psp2LinkGetValue(REQUESTS_SOCK), (SceNetSockaddr *)&serveraddr, sizeof(serveraddr));
 	if(ret<0)
 	{
-		debugNetPrintf(ERROR,"sceNetBind error: 0x%08X\n", ret);
-		sceNetSocketClose(server_requests_sock);
+		debugNetPrintf(ERROR,"[PSP2LINK] sceNetBind error: 0x%08X\n", ret);
+		sceNetSocketClose(psp2LinkGetValue(REQUESTS_SOCK));
 		return -1;
 	}
 	/* Start listening */
-	ret = sceNetListen(server_requests_sock, 5);
+	ret = sceNetListen(psp2LinkGetValue(REQUESTS_SOCK), 5);
 	if(ret<0)
 	{
-		debugNetPrintf(ERROR,"sceNetListen error: 0x%08X\n", ret);
-		sceNetSocketClose(server_requests_sock);
+		debugNetPrintf(ERROR,"[PSP2LINK] sceNetListen error: 0x%08X\n", ret);
+		sceNetSocketClose(psp2LinkGetValue(REQUESTS_SOCK));
 		return -1;
 	}
 	
 	
    
    
-	while(psp2link_fileio_active)
+	while(psp2LinkGetValue(FILEIO_ACTIVE))
 	{
-		debugNetPrintf(INFO,"Waiting for connection\n", ret);
+		debugNetPrintf(INFO,"[PSP2LINK] Waiting for connection\n", ret);
 		
 		/* Accept clients */
 		SceNetSockaddrIn clientaddr;
 		int client_sock;
 		unsigned int addrlen = sizeof(clientaddr);
-		client_sock = sceNetAccept(server_requests_sock, (SceNetSockaddr *)&clientaddr, &addrlen);
+		client_sock = sceNetAccept(psp2LinkGetValue(REQUESTS_SOCK), (SceNetSockaddr *)&clientaddr, &addrlen);
 		if (client_sock < 0) {
-			debugNetPrintf(ERROR,"sceNetAccept error (%d)", client_sock);
+			debugNetPrintf(ERROR,"[PSP2LINK] sceNetAccept error (%d)", client_sock);
 		    continue;
 		}
 		
 		/* Get the client's IP address */
 		remote_pc_addr = clientaddr.sin_addr.s_addr;
 		char remote_ip[16];
-		sceNetInetNtop(PSP2_NET_AF_INET,&clientaddr.sin_addr.s_addr,remote_ip,sizeof(remote_ip));
-		debugNetPrintf(INFO,"Client connected from %s port: %i\n ",remote_ip, clientaddr.sin_port);			
-		if (psp2link_fileio_sock > 0) {
-			debugNetPrintf(ERROR,"Client reconnected\n");
-			// sceNetSocketClose(psp2link_fileio_sock);
+		sceNetInetNtop(SCE_NET_AF_INET,&clientaddr.sin_addr.s_addr,remote_ip,sizeof(remote_ip));
+		debugNetPrintf(INFO,"[PSP2LINK] Client connected from %s port: %i\n ",remote_ip, clientaddr.sin_port);			
+		if (psp2LinkGetValue(REQUESTS_SOCK) > 0) {
+			debugNetPrintf(ERROR,"[PSP2LINK] Client reconnected\n");
+			// sceNetSocketClose(psp2LinkGetValue(REQUESTS_SOCK));
 		}
 		
-		psp2link_fileio_sock = client_sock;	
-		no_connected=1;
+		configuration->psp2link_fileio_sock = client_sock;	
+		psp2link_requests_connected=1;
 		
-		debugNetPrintf(INFO,"sock psp2link_fileio set %d connected %d\n",psp2link_fileio_sock,no_connected);
+		debugNetPrintf(INFO,"[PSP2LINK] sock psp2link_fileio set %d connected %d\n",psp2LinkGetValue(FILEIO_SOCK),psp2link_requests_connected);
 		
 		
 	}
-	debugNetPrintf(INFO,"exit thread requests\n");
-	
-	if(psp2link_fileio_sock)
+	debugNetPrintf(INFO,"[PSP2LINK] exit thread requests\n");
+	if(psp2LinkGetValue(FILEIO_SOCK))
 	{
-		sceNetSocketClose(psp2link_fileio_sock);
+		debugNetPrintf(DEBUG,"[PSP2LINK] closing fileio_sock\n");
+		sceNetSocketClose(psp2LinkGetValue(FILEIO_SOCK));
+		configuration->psp2link_fileio_sock=-1;
 	}
-	sceNetSocketClose(server_requests_sock);
+	if(psp2LinkGetValue(REQUESTS_SOCK))
+	{
+		debugNetPrintf(DEBUG,"[PSP2LINK] closing server_request_sock\n");
+		sceNetSocketClose(psp2LinkGetValue(REQUESTS_SOCK));
+		configuration->psp2link_requests_sock=-1;
+	}
+	
+	
+	psp2link_requests_connected=0;
+	
 	
 	sceKernelExitDeleteThread(0);
 	return 0;
