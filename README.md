@@ -165,7 +165,7 @@ PSP2LINK FOR VITA
   Special thanks goes to:
   
   - ps2dev old comrades. 
-  - All people who collaborated in PSP2SDK: @17310, @xerpi, @frangar, @frtomtomdu80, @hykemthedemon , @SMOKE587, @Josh_Axey ... 
+  - All people who collaborated in PSP2SDK: @173210, @xerpi, @frangar, @frtomtomdu80, @hykemthedemon , @SMOKE587, @Josh_Axey ... 
   - font in logo from http://www.fontspace.com/nal/the-rave-is-in-your-pants
   - xyzz for help with new toolchain
   
