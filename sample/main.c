@@ -63,6 +63,8 @@ int main()
 	
 	while(1)
 	{
+		//for unix machine host0:/foo/bar format
+		//for windows machine host0:c:\\foo\\bar
 		file_choose(
 					"host0:/usr/local",
 					rom_path,

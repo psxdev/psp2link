@@ -50,7 +50,7 @@ typedef struct
 {
     unsigned int cmd;
     unsigned short len;
-    unsigned int retval;
+    int retval;
 } __attribute__((packed)) psp2link_pkt_file_rly;
 
 typedef struct
