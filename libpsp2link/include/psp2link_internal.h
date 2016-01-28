@@ -34,6 +34,17 @@
 #define PSP2LINK_MKDIR_RLY    0xbabe01a2
 #define PSP2LINK_RMDIR_CMD    0xbabe01b1
 #define PSP2LINK_RMDIR_RLY    0xbabe01b2
+#define PSP2LINK_GETCWD_CMD	  0xbabe01c1
+#define PSP2LINK_GETCWD_RLY	  0xbabe01c2
+#define PSP2LINK_SETCWD_CMD	  0xbabe01d1
+#define PSP2LINK_SETCWD_RLY	  0xbabe01d2
+#define PSP2LINK_GETSTAT_CMD  0xbabe01e1
+#define PSP2LINK_GETSTAT_RLY  0xbabe01e2
+#define PSP2LINK_CHSTAT_CMD	  0xbabe01f1
+#define PSP2LINK_CHSTAT_RLY	  0xbabe01f2
+#define PSP2LINK_RENAME_CMD	  0xbabe0211
+#define PSP2LINK_RENAME_RLY	  0xbabe0212
+
 
 
 
@@ -143,6 +154,22 @@ typedef struct
 	unsigned short mtime[8];
     char name[256];
 } __attribute__((packed)) psp2link_pkt_dread_rly;
+
+typedef struct
+{
+    unsigned int cmd;
+    unsigned short len;
+    int retval;
+	char name[256];
+} __attribute__((packed)) psp2link_pkt_getcwd_rly;
+
+typedef struct
+{
+    unsigned int cmd;
+    unsigned short len;
+    char path[PSP2LINK_MAX_PATH];
+} __attribute__((packed)) psp2link_pkt_setcwd_req;
+
 
 #define PSP2LINK_EXECELF_CMD 0xbabe0201
 #define	PSP2LINK_EXECSPRX_CMD 0xbabe0202

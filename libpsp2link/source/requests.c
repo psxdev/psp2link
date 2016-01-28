@@ -171,6 +171,79 @@ int psp2link_accept_pkt(int sock, char *buf, int len, int pkt_type)
 
 	return 1;
 }
+int psp2LinkIoGetCwd(const char *dirname)
+{
+	psp2link_pkt_hdr *getcwdreq;
+	psp2link_pkt_getcwd_rly *getcwdrly;
+	if (psp2LinkGetValue(FILEIO_SOCK) < 0) 
+	{
+		debugNetPrintf(DEBUG,"[PSP2LINK] getcwd req but psp2link_fileio_sock is not active\n");
+		return -1;
+	}
+	debugNetPrintf(DEBUG,"[PSP2LINK] getcwd req\n");
+	getcwdreq = (psp2link_pkt_hdr *)&send_packet[0];
+
+	// Build packet
+	getcwdreq->cmd = sceNetHtonl(PSP2LINK_GETCWD_CMD);
+	getcwdreq->len = sceNetHtons((unsigned short)sizeof(psp2link_pkt_hdr));
+	
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), getcwdreq, sizeof(psp2link_pkt_hdr), SCE_NET_MSG_DONTWAIT) < 0) {
+		return -1;
+	}
+
+	if (!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), recv_packet, sizeof(psp2link_pkt_getcwd_rly), PSP2LINK_GETCWD_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_file: psp2link_getcwd: did not receive GETCWD_RLY\n");
+		return -1;
+	}
+
+	getcwdrly = (psp2link_pkt_getcwd_rly *)recv_packet;
+    
+	debugNetPrintf(DEBUG,"[PSP2LINK] getcwd reply received (ret %d)\n", sceNetNtohl(getcwdrly->retval));
+	if(sceNetNtohl(getcwdrly->retval))
+	{
+		strncpy(dirname,getcwdrly->name,256);
+	}
+
+	return sceNetNtohl(getcwdrly->retval);	
+	
+}
+int psp2LinkIoSetCwd(const char *dirpath)
+{
+	psp2link_pkt_setcwd_req *setcwdreq;
+	psp2link_pkt_file_rly *setcwdrly;
+	if (psp2LinkGetValue(FILEIO_SOCK) < 0) 
+	{
+		debugNetPrintf(DEBUG,"[PSP2LINK] setcwd req but psp2link_fileio_sock is not active\n");
+		return -1;
+	}
+	debugNetPrintf(DEBUG,"[PSP2LINK] setcwd req to %s\n",dirpath);
+	setcwdreq = (psp2link_pkt_setcwd_req *)&send_packet[0];
+
+	// Build packet
+	setcwdreq->cmd = sceNetHtonl(PSP2LINK_SETCWD_CMD);
+	setcwdreq->len = sceNetHtons((unsigned short)sizeof(psp2link_pkt_setcwd_req));
+	strncpy(setcwdreq->path, dirpath, PSP2LINK_MAX_PATH);
+	setcwdreq->path[PSP2LINK_MAX_PATH - 1] = 0; // Make sure it's null-terminated
+	
+	
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), setcwdreq, sizeof(psp2link_pkt_setcwd_req), SCE_NET_MSG_DONTWAIT) < 0) {
+		return -1;
+	}
+
+	if (!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), recv_packet, sizeof(psp2link_pkt_file_rly), PSP2LINK_SETCWD_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_file: psp2link_setcwd: did not receive SETCWD_RLY\n");
+		return -1;
+	}
+
+	setcwdrly = (psp2link_pkt_file_rly *)recv_packet;
+    
+	debugNetPrintf(DEBUG,"[PSP2LINK] setcwd reply received (ret %d)\n", sceNetNtohl(setcwdrly->retval));
+	
+
+	return sceNetNtohl(setcwdrly->retval);	
+	
+}
+
 int psp2LinkIoOpen(const char *file, int flags, SceMode mode)
 {
 	psp2link_pkt_open_req *openreq;
