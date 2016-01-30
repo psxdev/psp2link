@@ -42,13 +42,15 @@
 #define PSP2LINK_GETSTAT_RLY  0xbabe01e2
 #define PSP2LINK_CHSTAT_CMD	  0xbabe01f1
 #define PSP2LINK_CHSTAT_RLY	  0xbabe01f2
-#define PSP2LINK_RENAME_CMD	  0xbabe0211
-#define PSP2LINK_RENAME_RLY	  0xbabe0212
+#define PSP2LINK_FGETSTAT_CMD 0xbabe0211
+#define PSP2LINK_FGETSTAT_RLY 0xbabe0212
+#define PSP2LINK_RENAME_CMD	  0xbabe0221
+#define PSP2LINK_RENAME_RLY	  0xbabe0222
 
 
 
-
-#define PSP2LINK_MAX_PATH   256
+//stats name still 256. For path 1024
+#define PSP2LINK_MAX_PATH   1024
 
 
 typedef struct
@@ -160,7 +162,7 @@ typedef struct
     unsigned int cmd;
     unsigned short len;
     int retval;
-	char name[256];
+	char name[PSP2LINK_MAX_PATH];
 } __attribute__((packed)) psp2link_pkt_getcwd_rly;
 
 typedef struct
@@ -169,6 +171,50 @@ typedef struct
     unsigned short len;
     char path[PSP2LINK_MAX_PATH];
 } __attribute__((packed)) psp2link_pkt_setcwd_req;
+
+typedef struct
+{
+    unsigned int cmd;
+    unsigned short len;
+    char path[PSP2LINK_MAX_PATH];
+} __attribute__((packed)) psp2link_pkt_getstat_req;
+
+typedef struct
+{
+    unsigned int cmd;
+    unsigned short len;
+    int retval;
+	unsigned int mode;
+	unsigned int attr;
+	unsigned int size;
+	unsigned short ctime[8];
+	unsigned short atime[8];
+	unsigned short mtime[8];
+} __attribute__((packed)) psp2link_pkt_getstat_rly;
+
+typedef struct
+{
+    unsigned int cmd;
+    unsigned short len;
+    char path[PSP2LINK_MAX_PATH];
+	unsigned int mode;
+} __attribute__((packed)) psp2link_pkt_chstat_req;
+
+typedef struct
+{
+    unsigned int cmd;
+    unsigned short len;
+    int fd;
+} __attribute__((packed)) psp2link_pkt_fgetstat_req;
+
+typedef struct
+{
+    unsigned int cmd;
+    unsigned short len;
+    char path[PSP2LINK_MAX_PATH];
+    char newpath[PSP2LINK_MAX_PATH];
+} __attribute__((packed)) psp2link_pkt_rename_req;
+
 
 
 #define PSP2LINK_EXECELF_CMD 0xbabe0201
@@ -190,5 +236,8 @@ typedef struct
 
 int psp2link_requests_thread(SceSize args, void *argp);
 int psp2link_commands_thread(SceSize args, void *argp);
+void psp2LinkCommandsAbort();
+void psp2LinkRequestsAbort();
+
 
 #endif

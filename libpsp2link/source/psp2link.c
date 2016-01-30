@@ -19,6 +19,8 @@
 #include <psp2/types.h>
 #include <debugnet.h>
 #include "psp2link.h"
+#include "psp2link_internal.h"
+
 
 int psp2link_requests_thread(SceSize args, void *argp);
 int psp2link_commands_thread(SceSize args, void *argp);

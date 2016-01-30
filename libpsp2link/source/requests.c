@@ -171,7 +171,7 @@ int psp2link_accept_pkt(int sock, char *buf, int len, int pkt_type)
 
 	return 1;
 }
-int psp2LinkIoGetCwd(const char *dirname)
+int psp2LinkIoGetCwd(char *dirname)
 {
 	psp2link_pkt_hdr *getcwdreq;
 	psp2link_pkt_getcwd_rly *getcwdrly;
@@ -201,7 +201,7 @@ int psp2LinkIoGetCwd(const char *dirname)
 	debugNetPrintf(DEBUG,"[PSP2LINK] getcwd reply received (ret %d)\n", sceNetNtohl(getcwdrly->retval));
 	if(sceNetNtohl(getcwdrly->retval))
 	{
-		strncpy(dirname,getcwdrly->name,256);
+		strncpy(dirname,getcwdrly->name,PSP2LINK_MAX_PATH);
 	}
 
 	return sceNetNtohl(getcwdrly->retval);	
@@ -241,6 +241,247 @@ int psp2LinkIoSetCwd(const char *dirpath)
 	
 
 	return sceNetNtohl(setcwdrly->retval);	
+	
+}
+int psp2LinkIoGetstat(const char *file, SceIoStat *stat)
+{
+	psp2link_pkt_getstat_req *getstatreq;
+	psp2link_pkt_getstat_rly *getstatrly;
+
+	if (psp2LinkGetValue(REQUESTS_SOCK) < 0) {
+		return -1;
+	}
+
+	debugNetPrintf(DEBUG,"[PSP2LINK] getstat req \n");
+
+	getstatreq = (psp2link_pkt_getstat_req *)&send_packet[0];
+
+	// Build packet
+	getstatreq->cmd = sceNetHtonl(PSP2LINK_GETSTAT_CMD);
+	getstatreq->len = sceNetHtons((unsigned short)sizeof(psp2link_pkt_getstat_req));
+	strncpy(getstatreq->path, file, PSP2LINK_MAX_PATH);
+	getstatreq->path[PSP2LINK_MAX_PATH - 1] = 0; // Make sure it's null-terminated
+	
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), getstatreq, sizeof(psp2link_pkt_getstat_req), SCE_NET_MSG_DONTWAIT) < 0) {
+		return -1;
+	}
+
+	if (!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), recv_packet, sizeof(psp2link_pkt_getstat_rly), PSP2LINK_GETSTAT_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_getstat: did not receive GETSTAT_RLY\n");
+		return -1;
+	}
+
+	getstatrly = (psp2link_pkt_getstat_rly *)recv_packet;
+    
+	debugNetPrintf(DEBUG,"[PSP2LINK] getstat  reply received (ret %d)\n", sceNetNtohl(getstatrly->retval));
+
+	if(getstatrly->retval==0)
+	{
+		// now handle the return buffer translation, to build reply bit
+		stat->st_mode = sceNetNtohl(getstatrly->mode);
+		stat->st_attr = sceNetNtohl(getstatrly->attr); //no attr on pc/mac side ignore 0 is returned
+		stat->st_size = sceNetNtohl(getstatrly->size);
+		stat->st_ctime.microsecond = 0;
+		stat->st_ctime.second = sceNetNtohs(getstatrly->ctime[1]);
+		stat->st_ctime.minute = sceNetNtohs(getstatrly->ctime[2]);
+		stat->st_ctime.hour = sceNetNtohs(getstatrly->ctime[3]);
+		stat->st_ctime.day = sceNetNtohs(getstatrly->ctime[4]);
+		stat->st_ctime.month = sceNetNtohs(getstatrly->ctime[5]);
+		stat->st_ctime.year = sceNetNtohs(getstatrly->ctime[6]);
+	
+		stat->st_atime.microsecond = 0;
+		stat->st_atime.second = sceNetNtohs(getstatrly->atime[1]);
+		stat->st_atime.minute = sceNetNtohs(getstatrly->atime[2]);
+		stat->st_atime.hour = sceNetNtohs(getstatrly->atime[3]);
+		stat->st_atime.day = sceNetNtohs(getstatrly->atime[4]);
+		stat->st_atime.month = sceNetNtohs(getstatrly->atime[5]);
+		stat->st_atime.year = sceNetNtohs(getstatrly->atime[6]);
+		stat->st_mtime.microsecond = 0;
+		stat->st_mtime.second = sceNetNtohs(getstatrly->mtime[1]);
+		stat->st_mtime.minute = sceNetNtohs(getstatrly->mtime[2]);
+		stat->st_mtime.hour = sceNetNtohs(getstatrly->mtime[3]);
+		stat->st_mtime.day = sceNetNtohs(getstatrly->mtime[4]);
+		stat->st_mtime.month = sceNetNtohs(getstatrly->mtime[5]);
+		stat->st_mtime.year = sceNetNtohs(getstatrly->mtime[6]);
+	
+	
+	
+   	 	//stat->st_private[] don't know how to fill leave as is
+	}
+	return sceNetNtohl(getstatrly->retval);
+	
+}
+int psp2LinkIoChstat(const char *file, SceIoStat *stat,int bit)
+{
+	//we will ignore bit only consider changes on file permission in stat mask 0x1FF in stat->mode
+	psp2link_pkt_chstat_req *getstatreq;
+	psp2link_pkt_getstat_rly *getstatrly;
+
+	if (psp2LinkGetValue(REQUESTS_SOCK) < 0) {
+		return -1;
+	}
+
+	debugNetPrintf(DEBUG,"[PSP2LINK] chstat req %s maskbit %d\n",file,bit);
+
+	getstatreq = (psp2link_pkt_chstat_req *)&send_packet[0];
+
+	// Build packet
+	getstatreq->cmd = sceNetHtonl(PSP2LINK_CHSTAT_CMD);
+	getstatreq->len = sceNetHtons((unsigned short)sizeof(psp2link_pkt_chstat_req));
+	strncpy(getstatreq->path, file, PSP2LINK_MAX_PATH);
+	getstatreq->path[PSP2LINK_MAX_PATH - 1] = 0; // Make sure it's null-terminated
+	getstatreq->mode = sceNetHtonl(stat->st_mode); //we suppose that only stat->mode&0x1ff is modified by user because stat is managed on pc/mac side 
+	
+	
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), getstatreq, sizeof(psp2link_pkt_chstat_req), SCE_NET_MSG_DONTWAIT) < 0) {
+		return -1;
+	}
+
+	if (!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), recv_packet, sizeof(psp2link_pkt_getstat_rly), PSP2LINK_CHSTAT_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_chstat: did not receive CHSTAT_RLY\n");
+		return -1;
+	}
+
+	getstatrly = (psp2link_pkt_getstat_rly *)recv_packet;
+    
+	debugNetPrintf(DEBUG,"[PSP2LINK] chstat  reply received (ret %d)\n", sceNetNtohl(getstatrly->retval));
+
+	if(getstatrly->retval==0)
+	{
+		// now handle the return buffer translation, to build reply bit
+		stat->st_mode = sceNetNtohl(getstatrly->mode);
+		stat->st_attr = sceNetNtohl(getstatrly->attr); //no attr on pc/mac side ignore 0 is returned
+		stat->st_size = sceNetNtohl(getstatrly->size);
+		stat->st_ctime.microsecond = 0;
+		stat->st_ctime.second = sceNetNtohs(getstatrly->ctime[1]);
+		stat->st_ctime.minute = sceNetNtohs(getstatrly->ctime[2]);
+		stat->st_ctime.hour = sceNetNtohs(getstatrly->ctime[3]);
+		stat->st_ctime.day = sceNetNtohs(getstatrly->ctime[4]);
+		stat->st_ctime.month = sceNetNtohs(getstatrly->ctime[5]);
+		stat->st_ctime.year = sceNetNtohs(getstatrly->ctime[6]);
+	
+		stat->st_atime.microsecond = 0;
+		stat->st_atime.second = sceNetNtohs(getstatrly->atime[1]);
+		stat->st_atime.minute = sceNetNtohs(getstatrly->atime[2]);
+		stat->st_atime.hour = sceNetNtohs(getstatrly->atime[3]);
+		stat->st_atime.day = sceNetNtohs(getstatrly->atime[4]);
+		stat->st_atime.month = sceNetNtohs(getstatrly->atime[5]);
+		stat->st_atime.year = sceNetNtohs(getstatrly->atime[6]);
+		stat->st_mtime.microsecond = 0;
+		stat->st_mtime.second = sceNetNtohs(getstatrly->mtime[1]);
+		stat->st_mtime.minute = sceNetNtohs(getstatrly->mtime[2]);
+		stat->st_mtime.hour = sceNetNtohs(getstatrly->mtime[3]);
+		stat->st_mtime.day = sceNetNtohs(getstatrly->mtime[4]);
+		stat->st_mtime.month = sceNetNtohs(getstatrly->mtime[5]);
+		stat->st_mtime.year = sceNetNtohs(getstatrly->mtime[6]);
+	
+	
+	
+   	 	//stat->st_private[] don't know how to fill leave as is
+	}
+	return sceNetNtohl(getstatrly->retval);
+	
+}
+int psp2LinkIoRename(const char *oldname, const char *newname)
+{
+	psp2link_pkt_rename_req *renamereq;
+	psp2link_pkt_file_rly *renamerly;
+
+	if (psp2LinkGetValue(REQUESTS_SOCK) < 0) {
+		return -1;
+	}
+
+	debugNetPrintf(DEBUG,"[PSP2LINK] file rename req (%s) to (%s)\n", oldname,newname);
+
+	renamereq = (psp2link_pkt_rename_req *)&send_packet[0];
+
+	// Build packet
+	renamereq->cmd = sceNetHtonl(PSP2LINK_RENAME_CMD);
+	renamereq->len = sceNetHtons((unsigned short)sizeof(psp2link_pkt_rename_req));
+	strncpy(renamereq->path, oldname, PSP2LINK_MAX_PATH);
+	renamereq->path[PSP2LINK_MAX_PATH - 1] = 0; // Make sure it's null-terminated
+	strncpy(renamereq->newpath, newname, PSP2LINK_MAX_PATH);
+	renamereq->newpath[PSP2LINK_MAX_PATH - 1] = 0; // Make sure it's null-terminated
+
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), renamereq, sizeof(psp2link_pkt_rename_req), SCE_NET_MSG_DONTWAIT) < 0) {
+		return -1;
+	}
+
+	if (!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), recv_packet, sizeof(psp2link_pkt_file_rly), PSP2LINK_RENAME_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_remove: did not receive RENAME_RLY\n");
+		return -1;
+	}
+
+	renamerly = (psp2link_pkt_file_rly *)recv_packet;
+	debugNetPrintf(DEBUG,"[PSP2LINK] file rename reply received (ret %d)\n", sceNetNtohl(renamerly->retval));
+	return sceNetNtohl(renamerly->retval);
+}
+
+int psp2LinkIoGetstatByFd(SceUID fd, SceIoStat *stat)
+{
+	psp2link_pkt_fgetstat_req *getstatreq;
+	psp2link_pkt_getstat_rly *getstatrly;
+
+	if (psp2LinkGetValue(REQUESTS_SOCK) < 0) {
+		return -1;
+	}
+
+	debugNetPrintf(DEBUG,"[PSP2LINK] getstatbyfd req fd=%d \n",fd);
+
+	getstatreq = (psp2link_pkt_fgetstat_req *)&send_packet[0];
+
+	// Build packet
+	getstatreq->cmd = sceNetHtonl(PSP2LINK_FGETSTAT_CMD);
+	getstatreq->len = sceNetHtons((unsigned short)sizeof(psp2link_pkt_fgetstat_req));
+	getstatreq->fd = sceNetHtonl(fd);
+	
+	if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), getstatreq, sizeof(psp2link_pkt_fgetstat_req), SCE_NET_MSG_DONTWAIT) < 0) {
+		return -1;
+	}
+
+	if (!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), recv_packet, sizeof(psp2link_pkt_getstat_rly), PSP2LINK_FGETSTAT_RLY)) {
+		debugNetPrintf(ERROR,"[PSP2LINK] psp2link_getstat: did not receive GETSTAT_RLY\n");
+		return -1;
+	}
+
+	getstatrly = (psp2link_pkt_getstat_rly *)recv_packet;
+    
+	debugNetPrintf(DEBUG,"[PSP2LINK] getstatbyfd  reply received (ret %d)\n", sceNetNtohl(getstatrly->retval));
+
+	if(getstatrly->retval==0)
+	{
+		// now handle the return buffer translation, to build reply bit
+		stat->st_mode = sceNetNtohl(getstatrly->mode);
+		stat->st_attr = sceNetNtohl(getstatrly->attr); //no attr on pc/mac side ignore 0 is returned
+		stat->st_size = sceNetNtohl(getstatrly->size);
+		stat->st_ctime.microsecond = 0;
+		stat->st_ctime.second = sceNetNtohs(getstatrly->ctime[1]);
+		stat->st_ctime.minute = sceNetNtohs(getstatrly->ctime[2]);
+		stat->st_ctime.hour = sceNetNtohs(getstatrly->ctime[3]);
+		stat->st_ctime.day = sceNetNtohs(getstatrly->ctime[4]);
+		stat->st_ctime.month = sceNetNtohs(getstatrly->ctime[5]);
+		stat->st_ctime.year = sceNetNtohs(getstatrly->ctime[6]);
+	
+		stat->st_atime.microsecond = 0;
+		stat->st_atime.second = sceNetNtohs(getstatrly->atime[1]);
+		stat->st_atime.minute = sceNetNtohs(getstatrly->atime[2]);
+		stat->st_atime.hour = sceNetNtohs(getstatrly->atime[3]);
+		stat->st_atime.day = sceNetNtohs(getstatrly->atime[4]);
+		stat->st_atime.month = sceNetNtohs(getstatrly->atime[5]);
+		stat->st_atime.year = sceNetNtohs(getstatrly->atime[6]);
+		stat->st_mtime.microsecond = 0;
+		stat->st_mtime.second = sceNetNtohs(getstatrly->mtime[1]);
+		stat->st_mtime.minute = sceNetNtohs(getstatrly->mtime[2]);
+		stat->st_mtime.hour = sceNetNtohs(getstatrly->mtime[3]);
+		stat->st_mtime.day = sceNetNtohs(getstatrly->mtime[4]);
+		stat->st_mtime.month = sceNetNtohs(getstatrly->mtime[5]);
+		stat->st_mtime.year = sceNetNtohs(getstatrly->mtime[6]);
+	
+	
+	
+   	 	//stat->st_private[] don't know how to fill leave as is
+	}
+	return sceNetNtohl(getstatrly->retval);
 	
 }
 
