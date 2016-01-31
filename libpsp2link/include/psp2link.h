@@ -55,6 +55,10 @@ typedef enum psp2LinkValue
 } psp2LinkValue; 
 
 
+int psp2LinkIoGetstat(const char *file, SceIoStat *stat);
+int psp2LinkIoChstat(const char *file, SceIoStat *stat,int bit);
+int psp2LinkIoGetstatByFd(SceUID fd, SceIoStat *stat);
+int psp2LinkIoRename(const char *oldname, const char *newname);
 int psp2LinkIoGetCwd(char *dirname);
 int psp2LinkIoSetCwd(const char *dirname);
 int psp2LinkIoOpen(const char *file, int flags, SceMode mode);
