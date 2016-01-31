@@ -647,21 +647,12 @@ int psp2LinkIoWrite(SceUID fd, const void *data, SceSize size)
 		}
 
 		writecmd->nbytes = sceNetHtonl(nbytes);
-#ifdef ZEROCOPY
 		/* Send the packet header.  */
 		if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), writecmd, hlen, SCE_NET_MSG_DONTWAIT) < 0)
 			return -1;
 		/* Send the write() data.  */
 		if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), &data[writtenbytes], nbytes, SCE_NET_MSG_DONTWAIT) < 0)
 			return -1;
-#else
-		// Copy data to the acutal packet
-		memcpy(&send_packet[sizeof(psp2link_pkt_write_req)], &data[writtenbytes],nbytes);
-
-		if (psp2link_send(psp2LinkGetValue(FILEIO_SOCK), writecmd, hlen + nbytes, SCE_NET_MSG_DONTWAIT) < 0)
-			return -1;
-#endif
-
 
 		// Get reply
 		if(!psp2link_accept_pkt(psp2LinkGetValue(FILEIO_SOCK), (char *)writerly, sizeof(psp2link_pkt_file_rly), PSP2LINK_WRITE_RLY)) {
