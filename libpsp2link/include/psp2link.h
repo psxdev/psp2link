@@ -73,6 +73,33 @@ int psp2LinkIoDopen(const char *dirname);
 int psp2LinkIoDread(SceUID fd, SceIoDirent *dir);
 int psp2LinkIoDclose(SceUID fd);
 
+//emu IO
+int emuIoGetstat(const char *file, SceIoStat *stat);
+int emuIoChstat(const char *file, SceIoStat *stat,int bit);
+int emuIoGetstatByFd(SceUID fd, SceIoStat *stat);
+int emuIoRename(const char *oldname, const char *newname);
+int emuIoGetCwd(char *dirname);
+int emuIoSetCwd(const char *dirname);
+int emuIoOpen(const char *file, int flags, SceMode mode);
+int emuIoClose(SceUID fd);
+int emuIoRead(SceUID fd, void *data, SceSize size);
+int emuIoWrite(SceUID fd, const void *data, SceSize size);
+int emuIoLseek(SceUID fd, int offset, int whence);
+int emuIoRemove(const char *file);
+int emuIoMkdir(const char *dirname, SceMode mode);
+int emuIoRmdir(const char *dirname);
+int emuIoDopen(const char *dirname);
+int emuIoDread(SceUID fd, SceIoDirent *dir);
+int emuIoDclose(SceUID fd);
+int emuIoSetLocalDir(char *path);
+int emuIoSetRemoteDir(char *path);
+char * emuIoGetLocalDir();
+char * emuIoGetRemoteDir();
+int emuIoCheckByFd(SceUID fd);
+int emuIoCheckFreeFd();
+int emuIoInit(char *local,char *remote);
+int emuIoFinish();
+
 
 void psp2LinkRequestsAbort();
 int psp2LinkRequestsIsConnected();

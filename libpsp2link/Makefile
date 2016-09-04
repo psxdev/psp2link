@@ -1,10 +1,10 @@
 TARGET_LIB = libpsp2link.a
-OBJS       = source/requests.o source/commands.o source/psp2link.o 
+OBJS       = source/requests.o source/commands.o source/psp2link.o source/emulink.o
 INCLUDES   = include
 PREFIX  = arm-vita-eabi
 CC      = $(PREFIX)-gcc
 AR      = $(PREFIX)-ar
-CFLAGS  = -O2 -Wall -I$(INCLUDES) 
+CFLAGS  = -Wl,-q -Wall -O3 -I$(INCLUDES)
 ASFLAGS = $(CFLAGS)
 
 all: $(TARGET_LIB)

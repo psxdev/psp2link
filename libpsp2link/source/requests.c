@@ -93,7 +93,7 @@ static inline int psp2link_send(int sock, void *buf, int len, int flag)
 	ret = sceNetSend(sock, buf, len, flag);
 	if (ret < 0) 
 	{
-		debugNetPrintf(ERROR,"[PSP2LINK] sceNetSend error %d\n", ret);
+		debugNetPrintf(ERROR,"[PSP2LINK] sceNetSend error 0x%08X\n", ret);
 		psp2link_close_socket();
 		return -1;
 	}
@@ -857,7 +857,7 @@ int psp2LinkIoDread(SceUID fd, SceIoDirent *dir)
 		return -1;
 	}
 
-	debugNetPrintf(DEBUG,"[PSP2LINK] dir read req (%x)\n", fd);
+	debugNetPrintf(DEBUG,"[PSP2LINK] dir read req (%d)\n", fd);
 
 	dirreq = (psp2link_pkt_dread_req *)&send_packet[0];
 
